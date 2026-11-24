@@ -18,6 +18,7 @@
   "SID_STORE_CHANNEL": "Канал",
   "SID_STORE_ACCOUNT": "Обліковий запис",
   "SID_STORE_COMPONENTS": "Компоненти",
+  "SID_STORE_EDIT": "Змінити",
   "SID_STORE_REMOVE": "Видалити",
   "SID_STORE_INSTALL_ON_GITHUB": "Встановити на GitHub",
   "SID_STORE_SIGN_IN_WITH_GITHUB": "Увійти через GitHub",

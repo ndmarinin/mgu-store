@@ -6,11 +6,15 @@
  * UseCaseRegistry in manifest.json.
  *
  *   spell(onlineApp, 'Add source').then((text) => ...)
+ *   spell(onlineApp, 'Edit source', 'owner/repo').then((text) => ...)
  *
  * Resolves with the text the driver confirmed with OK, or null when they
  * left the speller without OK; rejects when it could not be opened. The
- * title shows at most 22 characters. Notify parameters: 102 the text so
- * far (with every keystroke), 105 present once the driver pressed OK.
+ * title shows at most 22 characters. `initial` (what is being edited) goes
+ * with the start parameters as 102, the input the speller reports with
+ * every keystroke; an HMI that takes none starts empty. Notify parameters:
+ * 102 the text so far (with every keystroke), 105 present once the driver
+ * pressed OK.
  */
 const SPELLER_USE_CASE = '02076b22-d19b-4aef-9e8c-0d7305d8b88c';
 const PARAM = { title: 4, input: 102, confirmed: 105 };
@@ -33,7 +37,7 @@ function withTimeout(promise, ms, what) {
     });
 }
 
-function spell(app, title) {
+function spell(app, title, initial) {
     return new Promise((resolve, reject) => {
         let inst = null;
         let subscription = null;
@@ -79,7 +83,11 @@ function spell(app, title) {
                     if (state !== 'READY') {
                         throw new Error(`speller is ${state}, not READY`);
                     }
-                    return inst.proxy.start({ token: inst.token, startParameters: new Map([[PARAM.title, title]]) });
+                    const start = new Map([[PARAM.title, title]]);
+                    if (initial) {
+                        start.set(PARAM.input, initial);
+                    }
+                    return inst.proxy.start({ token: inst.token, startParameters: start });
                 });
             })
             .catch((err) => finish(err));

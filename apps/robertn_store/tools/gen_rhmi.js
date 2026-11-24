@@ -25,9 +25,10 @@
  *                                      src/speller.js), Accounts and Phone
  *                                      access
  *   6  ST_OnlineApps_StoreSource       one source: its name and status, Channel,
- *                                      Account, Components, its error, Remove,
- *                                      and the GitHub App's install page (QR
- *                                      code and address) while it needs one
+ *                                      Account, Components, its error, Edit,
+ *                                      Remove, and the GitHub App's install
+ *                                      page (QR code and address) while it
+ *                                      needs one
  *  34  ST_OnlineApps_StoreSourcePick   a GitHub repo being added: a status line
  *                                      (the repo, Checking, Not found or
  *                                      private, ...), one list, a row (name |
@@ -161,6 +162,7 @@ const SOURCE = state(6, 'ST_OnlineApps_StoreSource', 15, 'Source', SOURCES.id, [
     row(85, 'storeSrcAccount', 'Account'),
     row(86, 'storeSrcComponents', 'Components'),
     text(89, 'storeSrcError'),
+    button(87, 'storeSrcEdit', 'Edit'),
     button(88, 'storeSrcRemove', 'Remove'),
     label(67, 'storeSrcAppLabel', 'Install on GitHub'),
     picture(68, 'storeSrcAppQr'),

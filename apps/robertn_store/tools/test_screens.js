@@ -568,9 +568,10 @@ Object.keys(UNITS).forEach((unit) => {
     eq(g.items.filter((o) => o !== it && !o.box && overlap(it, o)).map((o) => o.label), [], `${unit} Store: Leave safe mode overlaps no other button`);
 });
 
-// a source: Remove; the GitHub App's install page while a sign-in does not reach it
+// a source: Edit, Remove; the GitHub App's install page while a sign-in does not reach it
 f = screen('source');
-eq(own(f), ['Remove', 'Back']);
+eq(own(f), ['Edit', 'Remove', 'Back']);
+eq(f.items.find((o) => o.label === 'Edit').act, { do: 'source-edit', id: 'idrive7-apps' });
 eq([f.values.appQr.text, f.values.panel.hidden], ['', true], 'a source that reads needs no install page');
 f = screen('source-install-app');
 eq([f.values.appLabel.text, f.values.appQr.text], ['Install on GitHub', 'https://github.com/apps/mgu-store/installations/new']);
@@ -588,6 +589,12 @@ eq([text(f, 'status'), f.values.status.color], ['Add token failed: GitHub does n
 f = screen('pick');
 eq(own(f), ['Releases', 'main', 'develop', 'feature/gauges', 'redline', 'Back']);
 eq([text(f, 'title'), text(f, 'status')], ['cauliflowermossgrape/idrive7-apps', '']);
+// a source being edited: its channel marked with Current
+f = screen('pick-edit');
+eq(own(f), ['Releases', 'main', 'develop', 'feature/gauges', 'redline', 'Back']);
+eq(f.values.list.items.map((o) => [o.title, o.sub, o.right]),
+    [['Releases', '', 'chevron'], ['main', 'Branch', 'chevron'], ['develop', 'Default branch · Current', 'check'],
+        ['feature/gauges', 'Branch', 'chevron'], ['redline', 'Branch', 'chevron']]);
 eq(f.items[2].act, { do: 'pick', channel: 'branch:develop' });
 f = screen('pick-private');
 eq(own(f), ['Sign in with GitHub', 'Add token', 'Back']);

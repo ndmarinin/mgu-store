@@ -221,10 +221,11 @@ const cases = [
     [sourcesState([src({ status: 'error' }), src({ id: 'b', status: 'auth-needed' })]), 'Sign in'],
     [sourcesState([src({}), src({ id: 'b', status: 'checking' })]), ''],
     [sourcesState([]), ''],
-    [JSON.stringify(sourceActions(src({}))), '{"remove":true}'],
-    [JSON.stringify(sourceActions(src({ id: 'mgu-store', builtin: true }))), '{"remove":false}'],
-    [JSON.stringify(sourceActions(src({ type: 'https' }))), '{"remove":true}'],
-    [JSON.stringify(sourceActions(src({ type: 'file', usb: true }))), '{"remove":false}'],
+    [JSON.stringify(sourceActions(src({}))), '{"remove":true,"edit":true}'],
+    [JSON.stringify(sourceActions(src({ id: 'mgu-store', builtin: true }))), '{"remove":false,"edit":false}'],
+    [JSON.stringify(sourceActions(src({ type: 'https' }))), '{"remove":true,"edit":true}'],
+    [JSON.stringify(sourceActions(src({ type: 'file' }))), '{"remove":true,"edit":false}'],
+    [JSON.stringify(sourceActions(src({ type: 'file', usb: true }))), '{"remove":false,"edit":false}'],
     [sourceChannel(src({ channel: 'releases' })), 'Releases'],
     [sourceChannel(src({ channel: 'branch:main' })), 'Branch main'],
     [sourceChannel(src({ channel: 'branch:feature/x' })), 'Branch feature/x'],
@@ -314,6 +315,10 @@ const cases = [
         'Releases||releases Tags||tags main|Branch|branch:main master|Branch|branch:master dev|Default branch|branch:dev x|Branch|branch:x'],
     [pickOptions({ status: 'ok', releases: false, tags: false, defaultBranch: 'main', branches: ['main', 'bad name'] })
         .map((o) => o.channel).join(' '), 'branch:main'],
+    [pickOptions({ status: 'ok', releases: true, tags: true, defaultBranch: 'main', branches: ['main', 'dev'] }, 'branch:main')
+        .map((o) => `${o.channel}:${o.current}`).join(' '), 'releases:false tags:false branch:main:true branch:dev:false'],
+    [pickOptions({ status: 'ok', releases: true, tags: false, defaultBranch: 'main', branches: ['main'] })
+        .every((o) => !o.current), true],
     [pickOptions({ status: 'auth-needed' }).length, 0],
     [probeStatus(null), 'Checking'],
     [probeStatus({ status: 'ok', releases: true, branches: [] }), ''],

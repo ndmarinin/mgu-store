@@ -303,7 +303,8 @@ function sourcesState(sources) {
 }
 
 function sourceActions(src) {
-    return { remove: !src.builtin && !src.usb };
+    return { remove: !src.builtin && !src.usb,
+        edit: !src.builtin && !src.usb && (src.type === 'github' || src.type === 'https') };
 }
 
 /* A GitHub source's channel: releases, a branch's head, or the newest tag. */
@@ -442,15 +443,17 @@ function parseSource(text) {
 /* What a GitHub repo can be added on, from the updater's source-probe
  * answer, in the order offered: Releases, Tags (each only when the repo has
  * them), then its branches as the updater orders them (main, master, the
- * default branch, the rest). Each: { label, sub, channel }. */
-function pickOptions(probe) {
+ * default branch, the rest). Each: { label, sub, channel, current }:
+ * current, the channel a source being edited is on. */
+function pickOptions(probe, current) {
     if (!probe || probe.status !== 'ok') {
         return [];
     }
     return (probe.releases ? [{ label: tr("Releases"), sub: '', channel: 'releases' }] : [])
         .concat(probe.tags ? [{ label: tr("Tags"), sub: '', channel: 'tags' }] : [])
         .concat((Array.isArray(probe.branches) ? probe.branches : []).filter((b) => branchName(b) === b)
-            .map((b) => ({ label: b, sub: b === probe.defaultBranch ? tr("Default branch") : tr("Branch"), channel: `branch:${b}` })));
+            .map((b) => ({ label: b, sub: b === probe.defaultBranch ? tr("Default branch") : tr("Branch"), channel: `branch:${b}` })))
+        .map((o) => Object.assign(o, { current: o.channel === current }));
 }
 
 /* The repo picker's status: '' once there is something to pick. */
@@ -511,7 +514,7 @@ function sourcesMessage(m) {
     case 'invalid-source': return tr("Not owner/repo or https://host/path: {0}", m.text);
     case 'checking': return tr("Checking {0}", m.repo);
     case 'speller': return tr("Text entry failed: {0}", m.error);
-    case 'refused': return tr("{0} failed: {1}", m.op === 'source-remove' ? tr("Remove") : tr("Add source"), m.error);
+    case 'refused': return tr("{0} failed: {1}", m.op === 'source-remove' ? tr("Remove") : m.op === 'source-update' ? tr("Edit source") : tr("Add source"), m.error);
     default: return '';
     }
 }

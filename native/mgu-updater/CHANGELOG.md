@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A source can be edited (`source-update`): its repo or URL and its channel change under the same id, and the source is read again. A source being asked what it can be read on (`source-probe`) may name itself (`except`) while it is edited.
+
 ## 0.8.60
 
 - The updater runs in the head unit's slice for standard services, so it does not take CPU time ahead of the HMI.

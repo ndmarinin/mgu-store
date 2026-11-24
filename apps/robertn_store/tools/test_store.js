@@ -41,6 +41,7 @@ const states = [];
 const sent = [];
 const spellerAnswers = [];              // per speller: text (OK), null (Back) or Error
 const spellerTitles = [];
+const spellerTexts = [];                // what each speller was started with (its 102)
 
 /* iDrive 8's cells under iDrive 7's names, so one set of checks reads both. */
 const ID7_CELL = { FrequencyText: 'Text2ndCol' };
@@ -96,6 +97,7 @@ function fakeFactory() {
                 interactionState: { getValue: () => Promise.resolve('READY') },
                 start: (args) => {
                     spellerTitles.push(args.startParameters.get(4));
+                    spellerTexts.push(args.startParameters.has(102) ? args.startParameters.get(102) : null);
                     const answer = spellerAnswers.shift();
                     setTimeout(() => {
                         const m = new Map(answer === null ? [[101, 'Hidden']] : [[102, answer], [105, true]]);
@@ -227,7 +229,7 @@ const ST = Object.assign({}, base, {
     web: { enabled: false, urls: [], error: null }
 });
 const last = (re) => writes.filter((w) => re.test(w)).pop();
-const reset = () => { writes.length = 0; states.length = 0; sent.length = 0; spellerTitles.length = 0; };
+const reset = () => { writes.length = 0; states.length = 0; sent.length = 0; spellerTitles.length = 0; spellerTexts.length = 0; };
 const secretless = (req) => { const r = Object.assign({}, req); delete r.secret; return r; };
 let checks = 0;
 const eq = (got, want, msg) => { checks += 1; assert.deepStrictEqual(got, want, msg); };
@@ -779,6 +781,117 @@ function run() {
     }).then(() => {
         eq(last(/storeSourcesStatus\.0\.Text/),
             'storeSourcesStatus.0.Text=Add source failed: https://example.org/c.json is already a source');
+
+        // Edit source: the speller opens with what the source is (102); its page offers the channels, the one it is on marked
+        reset();
+        app._sourceId = 'edit_me';
+        app._client.emit('state', Object.assign({}, ST, { sources: ST.sources.concat([
+            { id: 'edit_me', type: 'github', label: 'o/edit', channel: 'branch:dev', status: 'ok', auth: null, components: 2 },
+            { id: 'edit_http', type: 'https', label: 'https://example.org/c.json', status: 'ok', auth: null, components: 1 }]) }));
+        return tick();
+    }).then(() => {
+        eq(last(/storeSrcEdit\.Visible/), 'storeSrcEdit.Visible=1', 'a source that can be removed can be edited');
+        spellerAnswers.push('o/edit');
+        app._components.storeSrcEdit.emit('action', {});
+        return tick();
+    }).then(() => {
+        eq([spellerTitles, spellerTexts], [['Edit source'], ['o/edit']], 'the speller, with what the source is');
+        eq(sent.map(secretless), [{ op: 'source-probe', repo: 'o/edit', except: 'edit_me' }], 'its own repo asked, itself excepted');
+        app._client.emit('probe', { type: 'probe', repo: 'o/edit', status: 'ok', releases: true, tags: false, defaultBranch: 'dev',
+            branches: ['main', 'dev'] });
+        app._states.ST_OnlineApps_StoreSource.emit('focus', { focus: true });
+        return tick();
+    }).then(() => {
+        eq(states, ['open ST_OnlineApps_StoreSourcePick'], 'its repo\'s page');
+        eq([0, 1, 2].map((i) => [last(new RegExp(`storePickList\\.${i}\\.Text1stCol`)), last(new RegExp(`storePickList\\.${i}\\.Text2ndCol`))]
+            .map((w) => w.split('=')[1]).join('|')), ['Releases|', 'main|Branch', 'dev|Default branch · Current'],
+            'the channel it is on, marked');
+        reset();
+        app._components.storePickList.emit('action', { row: 1 });
+        return tick();
+    }).then(() => {
+        eq(sent.map(secretless), [{ op: 'source-update', id: 'edit_me', type: 'github', repo: 'o/edit', channel: 'branch:main' }],
+            'another channel: the source changed under its id');
+        eq(states, ['close ST_OnlineApps_StoreSourcePick'], 'its page closed');
+        app._client.emit('reply-error', 'o/edit is already a source', 'source-update');
+        return tick();
+    }).then(() => {
+        eq(last(/storeSourcesStatus\.0\.Text/), 'storeSourcesStatus.0.Text=Edit source failed: o/edit is already a source');
+        // the channel it is already on: nothing sent
+        reset();
+        return tick(400);
+    }).then(() => {
+        spellerAnswers.push('o/edit');
+        app._editSource('edit_me');
+        return tick();
+    }).then(() => {
+        app._client.emit('probe', { type: 'probe', repo: 'o/edit', status: 'ok', releases: true, tags: false, defaultBranch: 'dev',
+            branches: ['main', 'dev'] });
+        app._states.ST_OnlineApps_StoreSource.emit('focus', { focus: true });
+        return tick();
+    }).then(() => {
+        reset();
+        app._components.storePickList.emit('action', { row: 2 });
+        return tick();
+    }).then(() => {
+        eq([sent, states], [[], ['close ST_OnlineApps_StoreSourcePick']], 'its own channel: the page closes, nothing sent');
+        // a tree address typed: changed at once, no page
+        reset();
+        return tick(400);
+    }).then(() => {
+        spellerAnswers.push('https://github.com/o/edit/tree/main');
+        app._editSource('edit_me');
+        return tick();
+    }).then(() => {
+        eq(sent.map(secretless), [{ op: 'source-update', id: 'edit_me', type: 'github', repo: 'o/edit', channel: 'branch:main' }],
+            'a tree address: changed at once');
+        eq(states, [], 'no page');
+        // an https source: its address typed again unchanged sends nothing, another one changes it
+        reset();
+        return tick(400);
+    }).then(() => {
+        app._sourceId = 'edit_http';
+        app._client.emit('state', Object.assign({}, ST, { sources: ST.sources.concat([
+            { id: 'edit_me', type: 'github', label: 'o/edit', channel: 'branch:dev', status: 'ok', auth: null, components: 2 },
+            { id: 'edit_http', type: 'https', label: 'https://example.org/c.json', status: 'ok', auth: null, components: 1 }]) }));
+        return tick();
+    }).then(() => {
+        spellerAnswers.push(' https://example.org/c.json ');
+        app._editSource('edit_http');
+        return tick();
+    }).then(() => {
+        eq([sent, states], [[], []], 'the same address: nothing sent');
+        return tick(400);
+    }).then(() => {
+        spellerAnswers.push('https://example.org/other.json');
+        app._editSource('edit_http');
+        return tick();
+    }).then(() => {
+        eq(sent.map(secretless), [{ op: 'source-update', id: 'edit_http', type: 'https', url: 'https://example.org/other.json' }],
+            'another address: changed');
+        // the Store's own source has no Edit; a text that is no source says so; left without OK sends nothing
+        reset();
+        app._sourceId = 'mgu-store';
+        app._client.emit('state', Object.assign({}, ST, { sources: ST.sources.concat([
+            { id: 'edit_me', type: 'github', label: 'o/edit', channel: 'branch:dev', status: 'ok', auth: null, components: 2 },
+            { id: 'edit_http', type: 'https', label: 'https://example.org/other.json', status: 'ok', auth: null, components: 1 }]) }));
+        return tick();
+    }).then(() => {
+        eq(last(/storeSrcEdit\.Visible/), 'storeSrcEdit.Visible=0', 'the Store\'s own source: no Edit');
+        spellerAnswers.push('foo bar');
+        app._editSource('edit_http');
+        return tick();
+    }).then(() => {
+        eq(spellerTitles, ['Edit source']);
+        eq(last(/storeSourcesStatus\.0\.Text/), 'storeSourcesStatus.0.Text=Not owner/repo or https://host/path: foo bar');
+        return tick(400);
+    }).then(() => {
+        spellerAnswers.push(null);
+        app._editSource('edit_http');
+        return tick();
+    }).then(() => {
+        eq([sent, states], [[], []], 'left without OK: nothing sent');
+        app._client.emit('state', ST);
         reset();
         app._sourceId = 'idrive7-apps';
         app._removeSource();
@@ -1692,6 +1805,46 @@ function runDrawn() {
             app._endPick();
             drawn.setTab('settings');
             leave(2);
+        }).then(() => {
+            // Edit source on the drawn screens: what the source is, typed in already on the keyboard's page;
+            // its repo's page marks the channel it is on, a pick changes it
+            reset();
+            app._client.emit('state', Object.assign({}, st, { sources: st.sources.concat([
+                { id: 'edit_drawn', type: 'github', label: 'o/edit', channel: 'branch:dev', status: 'ok', auth: null, components: 2 }]) }));
+            app._act({ do: 'open', page: { name: 'source', id: 'edit_drawn' } });
+            enter(2);
+            const edit = drawn.items.find((i) => i.label === 'Edit');
+            eq(edit && edit.act, { do: 'source-edit', id: 'edit_drawn' }, 'Edit on the drawn page');
+            reset();
+            app._act(edit.act);
+            eq([states.slice(-1), drawn.top().title, drawn.top().text], [[`open ${host(3)}`], 'Edit source', 'o/edit'],
+                'the keyboard\'s page, typed in');
+            enter(3);
+            tap('OK');
+            leave(3);
+            eq(states.slice(-1), [`close ${host(3)}`], 'OK closes it');
+            return tick();
+        }).then(() => {
+            eq(sent.map(secretless), [{ op: 'source-probe', repo: 'o/edit', except: 'edit_drawn' }], 'its own repo asked, itself excepted');
+            app._client.emit('probe', { type: 'probe', repo: 'o/edit', status: 'ok', releases: true, tags: false, defaultBranch: 'dev',
+                branches: ['main', 'dev'] });
+            return tick();
+        }).then(() => {
+            eq(states.slice(-1), [`open ${host(3)}`], 'its repo\'s page');
+            enter(3);
+            const labels = drawn.items.map((i) => i.label);
+            eq(['Releases', 'main', 'dev'].every((l) => labels.indexOf(l) >= 0), true, `the choices: ${labels}`);
+            const main = drawn.items.find((i) => i.label === 'main');
+            eq(main.act, { do: 'pick', channel: 'branch:main' });
+            reset();
+            app._act(main.act);
+            return tick();
+        }).then(() => {
+            eq(sent.map(secretless), [{ op: 'source-update', id: 'edit_drawn', type: 'github', repo: 'o/edit', channel: 'branch:main' }],
+                'another channel: the source changed under its id');
+            eq(states, [`close ${host(3)}`], 'its page closed');
+            leave(3);
+            app._client.emit('state', st);
         });
     }).then(() => {
         reset();

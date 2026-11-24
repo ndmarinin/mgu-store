@@ -150,7 +150,7 @@ const C = { status: 'storeStatus', safeModeOff: 'storeSafeModeOff', check: 'stor
     sourcesStatus: 'storeSourcesStatus', sourceList: 'storeSourceList', sourceAdd: 'storeSourceAdd',
     sourcePhone: 'storeSourcePhone', sourceAccounts: 'storeSourceAccounts',
     srcStatus: 'storeSrcStatus', srcChannel: 'storeSrcChannel', srcAccount: 'storeSrcAccount', srcComponents: 'storeSrcComponents',
-    srcError: 'storeSrcError', srcRemove: 'storeSrcRemove',
+    srcError: 'storeSrcError', srcEdit: 'storeSrcEdit', srcRemove: 'storeSrcRemove',
     pickStatus: 'storePickStatus', pickList: 'storePickList', pickSignIn: 'storePickSignIn', pickAddToken: 'storePickAddToken',
     pickRetry: 'storePickRetry',
     accountsStatus: 'storeAccountsStatus', accountList: 'storeAccountList', accountSignIn: 'storeAccountSignIn',
@@ -355,7 +355,7 @@ class Store extends OnlineApp {
                 this._render();
             } else if (forOp === 'token-add' && this._tokenAdding) {
                 this._endTokenAdd({ kind: 'refused', error: String(msg) });
-            } else if (forOp === 'source-add' || forOp === 'source-remove') {
+            } else if (forOp === 'source-add' || forOp === 'source-update' || forOp === 'source-remove') {
                 // a refused removal goes back to Sources, which shows why
                 if (forOp === 'source-remove') {
                     this._removalRefused = true;
@@ -594,6 +594,7 @@ class Store extends OnlineApp {
         this._bind(C.sourceList, (row) => this._onSource(row));
         this._bind(C.sourceAdd, () => this._addSource());
         this._bind(C.sourcePhone, () => this._openState(S.phone));
+        this._bind(C.srcEdit, () => this._editSource(this._sourceId));
         this._bind(C.srcRemove, () => this._openState(S.sourceRemove));
         this._bind(C.sourceAccounts, () => this._openState(S.accounts));
         this._bind(C.accountList, (row) => this._onAccount(row));
@@ -795,6 +796,7 @@ class Store extends OnlineApp {
         case 'restart': this._restart(); break;
         case 'safe-mode-off': this._privileged({ op: 'safe-mode-off' }); break;
         case 'source-remove': this._sourceId = act.id; this._removeSource(); break;
+        case 'source-edit': this._editSource(act.id); break;
         case 'account-remove': this._tokenId = act.id; this._removeAccount(); break;
         case 'add-source': this._addSource(); break;
         case 'add-token': this._addToken(); break;
@@ -1168,10 +1170,12 @@ class Store extends OnlineApp {
 
     /* The speller's text; null when the driver left it without OK or it
      * could not be opened (the status line says so); undefined when a newer
-     * speller replaced it. On iDrive 8's drawn screens the text is typed on
-     * the drawn keyboard instead (_type, with opts). */
+     * speller replaced it. opts.text is what is being edited, typed in
+     * already. On iDrive 8's drawn screens the text is typed on the drawn
+     * keyboard instead (_type, with opts). */
     _spell(title, note, opts) {
         const seq = ++this._spellSeq;
+        const initial = opts && opts.text;
         if (this._hmi === 'ID8' && this._drawnUi()) {
             return this._type(Object.assign({ title }, opts)).then((text) => (seq === this._spellSeq ? text : undefined));
         }
@@ -1180,7 +1184,7 @@ class Store extends OnlineApp {
         // the speller is the HMI's: the renderer's layer is not drawn over it
         this._drawn.suspend(true);
         this._spelling = true;
-        return spell(this, title).then((text) => {
+        return spell(this, title, initial).then((text) => {
             this._spelling = false;
             this._drawn.suspend(false);
             return text;
@@ -1278,6 +1282,35 @@ class Store extends OnlineApp {
         });
     }
 
+    /* Edit source: the speller (or the drawn keyboard) opens with the
+     * source's repo or URL typed in; what comes back replaces it: its
+     * address, or its address and its channel (a repo goes on its page
+     * again, the channel it is on marked). Nothing sent leaves the source
+     * away while it is being typed. */
+    _editSource(id) {
+        const src = this._source(id);
+        if (!src || !sourceActions(src).edit) {
+            return;
+        }
+        this._note(null);
+        this._spell(tr("Edit source"), null, { text: sourceLabel(src) }).then((text) => {
+            const typed = (text || '').trim();
+            if (!typed) {
+                return;
+            }
+            const source = parseSource(typed);
+            if (!source) {
+                this._note({ kind: 'invalid-source', text: typed });
+            } else if (source.type === 'github' && !source.channel) {
+                this._startPick(source.repo, { id: src.id, repo: src.label, channel: src.channel || null });
+            } else if (source.type === 'https' && source.url === sourceLabel(src)) {
+                return;
+            } else {
+                this._sendSourceUpdate(src.id, source);
+            }
+        });
+    }
+
     /* Add token: the speller's text goes to the updater, which asks GitHub
      * whose it is before it stores it; the status line says what came of it. */
     _addToken() {
@@ -1332,13 +1365,26 @@ class Store extends OnlineApp {
         }
     }
 
-    /* A repo typed without a branch: the updater says what it has. Its page
-     * opens only once the HMI has given the focus back from the speller (or
-     * FOCUS_BACK_MS after it closed): a page opened while the speller is
-     * still closing is closed again by the focus coming back below it. */
-    _startPick(repo) {
+    /* Changes a source (its id, so what it installed keeps it as its
+     * origin); the updater reads it again and says so in its state. */
+    _sendSourceUpdate(id, source) {
+        logger.info(`edit source ${id}: ${source.type === 'github' ? source.repo : source.url}` +
+            `${source.channel ? ` on ${source.channel}` : ''}`);
+        if (!this._privileged(Object.assign({ op: 'source-update', id }, source))) {
+            const error = readSecret() ? 'updater not running' : 'no updater secret';
+            this._note({ kind: 'refused', op: 'source-update', error });
+        }
+    }
+
+    /* A repo typed without a branch (added, or a source's repo being
+     * edited: edit holds its id and what it was): the updater says what it
+     * has. Its page opens only once the HMI has given the focus back from
+     * the speller (or FOCUS_BACK_MS after it closed): a page opened while
+     * the speller is still closing is closed again by the focus coming
+     * back below it. */
+    _startPick(repo, edit) {
         this._endPick();
-        const pick = { repo, probe: null, tokens: '', back: false, open: false };
+        const pick = { repo, probe: null, tokens: '', back: false, open: false, edit: edit || null };
         this._awaitFocus(pick);
         this._pick = pick;
         if (this._probe()) {
@@ -1371,7 +1417,10 @@ class Store extends OnlineApp {
         pick.tokens = this._tokenIds();
         clearTimeout(pick.answerTimer);
         logger.info(`probe ${pick.repo}`);
-        if (!this._privileged({ op: 'source-probe', repo: pick.repo })) {
+        // a source's own repo, while it is being edited, is this updater's to ask about
+        const req = pick.edit ? { op: 'source-probe', repo: pick.repo, except: pick.edit.id }
+            : { op: 'source-probe', repo: pick.repo };
+        if (!this._privileged(req)) {
             pick.probe = { status: 'refused', error: readSecret() ? 'updater not running' : 'no updater secret' };
         } else {
             pick.answerTimer = setTimeout(() => this._probeFailed('the updater did not answer'), PROBE_MS);
@@ -1452,7 +1501,9 @@ class Store extends OnlineApp {
         }
     }
 
-    /* Adds the repo being added on channel (null: none, the updater picks). */
+    /* Adds the repo being added on channel (null: none, the updater picks);
+     * a source being edited is changed to it instead, its address moved
+     * too when the repo is not the one it was. */
     _pickChannel(channel) {
         const pick = this._pick;
         if (!pick) {
@@ -1464,7 +1515,14 @@ class Store extends OnlineApp {
             this._closePage('pick', isPage('pick'));
         }
         // the repo as GitHub spells it (the speller types capitals first)
-        this._sendSource(Object.assign({ type: 'github', repo: (pick.probe && pick.probe.name) || pick.repo }, channel ? { channel } : {}));
+        const repo = (pick.probe && pick.probe.name) || pick.repo;
+        if (pick.edit) {
+            if (pick.edit.repo.toLowerCase() !== repo.toLowerCase() || (pick.edit.channel || null) !== (channel || null)) {
+                this._sendSourceUpdate(pick.edit.id, Object.assign({ type: 'github', repo }, channel ? { channel } : {}));
+            }
+        } else {
+            this._sendSource(Object.assign({ type: 'github', repo }, channel ? { channel } : {}));
+        }
     }
 
     /* Whether the repo's page is open: on the drawn stack, or its state (or
@@ -1694,6 +1752,7 @@ class Store extends OnlineApp {
         this._show(C.srcAccount, !!(src && sourceAccount(src)));
         this._show(C.srcComponents, !!src);
         this._text(C.srcError, src && src.error ? String(src.error) : '');
+        this._show(C.srcEdit, !!actions.edit);
         this._show(C.srcRemove, !!actions.remove);
         // a private repo no account reaches after a sign-in: the GitHub App's install page
         const app = src && src.status === 'auth-needed' && this._st && this._st.signinApp;
@@ -1707,11 +1766,11 @@ class Store extends OnlineApp {
     _renderPick() {
         const pick = this._pick;
         const probe = pick ? pick.probe : null;
-        const options = pickOptions(probe);
+        const options = pickOptions(probe, pick && pick.edit && pick.edit.channel);
         const auth = !!probe && probe.status === 'auth-needed';
         const status = auth && pick.tokenNote && this._accountsNote.text ? this._accountsNote.text : probeStatus(probe);
         this._text(C.pickStatus, pick ? [(probe && probe.name) || pick.repo, status].filter(Boolean).join(': ') : '');
-        this._renderList(C.pickList, options.map((o) => [o.label, o.sub]));
+        this._renderList(C.pickList, options.map((o) => [o.label, o.current ? [o.sub, tr("Current")].filter(Boolean).join(' · ') : o.sub]));
         this._rows.pick = options.map((o) => o.channel);
         this._show(C.pickSignIn, auth && this._connected && !!this._st && this._st.signin === true);
         this._show(C.pickAddToken, auth && this._connected);

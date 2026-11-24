@@ -1200,10 +1200,25 @@ module.exports = {
      }
     },
     {
-     "name": "remove",
+     "name": "edit",
      "rtype": "gpu",
      "gpu": "vbutton",
      "x": 480,
+     "y": 720,
+     "w": 520,
+     "h": 106,
+     "opts": {
+      "text": "Edit",
+      "vicon": "edit",
+      "style": "outline"
+     },
+     "onTap": "event:edit"
+    },
+    {
+     "name": "remove",
+     "rtype": "gpu",
+     "gpu": "vbutton",
+     "x": 1020,
      "y": 720,
      "w": 520,
      "h": 106,

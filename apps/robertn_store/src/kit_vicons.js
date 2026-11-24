@@ -45,6 +45,10 @@ const ICONS = {
         cv.polyline([p(0.5, 0.54), p(0.72, 0.42), p(0.72, 0.32)], w, c); cv.roundRect(...p(0.66, 0.22), s * 0.12, s * 0.1, 1, c); },
     refresh(cv, x, y, s, c) { const cx = x + s / 2, cy = y + s / 2, r = s * 0.34, w = s * 0.09;
         cv.arc(cx, cy, r - w, r, 40, 330, c); const p = P(x, y, s); cv.quad([p(0.5, 0.06), p(0.68, 0.18), p(0.5, 0.3), p(0.5, 0.3)], c); },
+    edit(cv, x, y, s, c) { const p = P(x, y, s);          // a pencil pointing down-left
+        cv.quad([p(0.23, 0.83), p(0.29, 0.7), p(0.36, 0.77), p(0.23, 0.83)], c);
+        cv.quad([p(0.29, 0.7), p(0.59, 0.4), p(0.66, 0.47), p(0.36, 0.77)], c);
+        cv.quad([p(0.59, 0.4), p(0.65, 0.34), p(0.73, 0.41), p(0.66, 0.47)], c); },
     // app identity icons
     gauge(cv, x, y, s, c) { const cx = x + s / 2, cy = y + s * 0.56, r = s * 0.4, w = s * 0.08;
         cv.arc(cx, cy, r - w, r, -125, 125, c);

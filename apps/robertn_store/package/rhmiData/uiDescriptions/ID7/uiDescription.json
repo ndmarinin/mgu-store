@@ -770,6 +770,28 @@
             }
           ]
         },
+        "87": {
+          "type": "button",
+          "name": "storeSrcEdit",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_STORE_EDIT",
+                "type": "StringId"
+              }
+            }
+          ]
+        },
         "88": {
           "type": "button",
           "name": "storeSrcRemove",

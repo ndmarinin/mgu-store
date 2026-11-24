@@ -18,6 +18,7 @@
   "SID_STORE_CHANNEL": "Canal",
   "SID_STORE_ACCOUNT": "Cont",
   "SID_STORE_COMPONENTS": "Componente",
+  "SID_STORE_EDIT": "Editare",
   "SID_STORE_REMOVE": "Eliminare",
   "SID_STORE_INSTALL_ON_GITHUB": "Instalare pe GitHub",
   "SID_STORE_SIGN_IN_WITH_GITHUB": "Autentificare cu GitHub",

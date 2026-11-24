@@ -6,7 +6,7 @@ and the uplink's Wi-Fi.
 It is the screen of [mgu-updater](../../native/mgu-updater/README.md),
 which does all the work; the app shows the state the updater streams over
 its socket and sends it requests: check, install and reboot, and the
-privileged ones (uninstall, source-add, source-probe, source-remove, token-add, token-remove,
+privileged ones (uninstall, source-add, source-probe, source-update, source-remove, token-add, token-remove,
 login-start, login-cancel, web, proxy-set, and uplink-prefer, wifi-enable, wifi-5ghz, wifi-scan, wifi-connect,
 wifi-forget, which the updater relays to [mgu-uplink](../../native/mgu-uplink/README.md)),
 which carry the secret the updater leaves in the app's data folder
@@ -59,7 +59,7 @@ USB, Settings) beside:
   Restart now stay as they are.
 - **USB**: the components of the sticks' sources.
 - **Settings**: the sources (each opens its page: channel, account,
-  components, error, Remove with a confirm step, and while a sign-in does
+  components, error, Edit, Remove with a confirm step, and while a sign-in does
   not reach a private one the GitHub App's install page as a QR code and
   its address), Add source, Wi-Fi (below), Accounts (each one's Remove with a confirm
   step; Sign in with GitHub while `state.signin` is true; Add token), Proxy
@@ -209,16 +209,29 @@ already restarting the unit.
 ## Sources
 
 **Sources** has a status line (a source typed wrong, the updater's refusal
-to add or remove one, a speller that could not open; hidden otherwise),
-one row per source, its label and the account that reads it (a GitHub
-login), else its status: `OK`, `USB` (a source on a plugged-in USB stick),
-`Checking`, `Sign in` (no account reaches it), `Error`, `Offline`; then
-**Add source**, **Accounts** and **Phone access** (the phone page, for
+to add, change or remove one, a speller that could not open; hidden
+otherwise), one row per source, its label and the account that reads it (a
+GitHub login), else its status: `OK`, `USB` (a source on a plugged-in USB
+stick), `Checking`, `Sign in` (no account reaches it), `Error`, `Offline`;
+then **Add source**, **Accounts** and **Phone access** (the phone page, for
 pasting tokens and for logs). A source's page shows its label and status,
 **Channel** (`Releases`, `Branch <name>`, `Tags`), **Account** (the GitHub
-login that reads it), **Components** (how many it lists), its error in full and
-**Remove** (with a confirm step, *Remove source?*; not for the Store's own
-source or a USB source).
+login that reads it), **Components** (how many it lists), its error in full,
+**Edit** and **Remove** (with a confirm step, *Remove source?*; Remove not
+for the Store's own source or a USB source, Edit for a repo's or an
+https:// source only).
+
+**Edit** opens the speller (on the drawn screens the keyboard page) with
+the source's repo or URL typed in already, titled *Edit source*: the
+address is corrected or replaced with the text confirmed with OK, which
+then counts as an *Add source* text (above) for a source the updater does
+not have yet; what it is becomes `source-update` instead of `source-add`:
+the source keeps its id, so what it installed stays its own, and is read
+again. A repo typed without a branch opens its page with the channel the
+source is on marked *Current*; picking one changes the source to it, the
+repo with it when the address was changed too; picking the channel it is
+on changes nothing. The updater's refusal shows on the status line
+(`Edit source failed: …`).
 
 **Accounts** are the updater's tokens, which belong to no source: the
 updater reads each source with whichever one reaches it, so one account

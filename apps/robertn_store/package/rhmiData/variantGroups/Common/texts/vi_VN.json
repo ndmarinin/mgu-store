@@ -18,6 +18,7 @@
   "SID_STORE_CHANNEL": "Kênh",
   "SID_STORE_ACCOUNT": "Tài khoản",
   "SID_STORE_COMPONENTS": "Thành phần",
+  "SID_STORE_EDIT": "Sửa",
   "SID_STORE_REMOVE": "Xóa",
   "SID_STORE_INSTALL_ON_GITHUB": "Cài đặt trên GitHub",
   "SID_STORE_SIGN_IN_WITH_GITHUB": "Đăng nhập bằng GitHub",

@@ -26,7 +26,7 @@ const { t: tr } = require('./i18n.js');
  * { do: 'tab', tab }, { do: 'filter', filter }, { do: 'open', page },
  * { do: 'back' }, { do: 'check' }, { do: 'install', id }, { do: 'update-all' },
  * { do: 'remove', id, tools? }, { do: 'restart' }, { do: 'safe-mode-off' },
- * { do: 'source-remove', id }, { do: 'account-remove', id }, { do: 'add-source' },
+ * { do: 'source-remove', id }, { do: 'source-edit', id }, { do: 'account-remove', id }, { do: 'add-source' },
  * { do: 'add-token' }, { do: 'sign-in' }, { do: 'sign-in-cancel' }, { do: 'phone' },
  * { do: 'pick', channel }, { do: 'pick-retry' }, { do: 'pick-add-token' }, { do: 'key', key } (typeKey),
  * { do: 'wifi-power' }, { do: 'wifi-5ghz' }, { do: 'wifi-scan' }, { do: 'wifi-join', ssid }, { do: 'wifi-password', ssid },
@@ -512,6 +512,7 @@ function sourceView(m, id) {
         appLabel: { text: installUrl ? tr("Install on GitHub") : '' },
         appQr: { text: installUrl },
         appUrl: { text: installUrl },
+        edit: sourceActions(s).edit ? button(tr("Edit"), { do: 'source-edit', id: s.id }, { vicon: 'edit', style: 'outline' }) : hidden,
         remove: sourceActions(s).remove ? button(tr("Remove"), { do: 'open', page: { name: 'confirm', kind: 'source-remove', id: s.id } },
             { vicon: 'trash', style: 'outline' }) : hidden
     };
@@ -531,7 +532,8 @@ function accountsView(m) {
     };
 }
 
-/* A GitHub repo being added: what it can be added on; while no token
+/* A GitHub repo being added, or a source's repo whose channel is picked
+ * again (its current one marked): what it can be added on; while no token
  * reaches it, Sign in with GitHub and Add token (whose status shows here). */
 function pickView(m) {
     const pick = m.pick || { repo: '', probe: null };
@@ -543,9 +545,10 @@ function pickView(m) {
     return {
         title: { text: (probe && probe.name) || pick.repo },
         status: { text: status, color: !probe ? BLUE : probe.status === 'ok' && !status ? DIM : AMBER },
-        list: { items: pickOptions(probe).map((o) => ({ id: o.channel, title: o.label, sub: o.sub, plain: true,
+        list: { items: pickOptions(probe, pick.edit && pick.edit.channel).map((o) => ({ id: o.channel, title: o.label,
+            sub: o.current ? [o.sub, tr("Current")].filter(Boolean).join(' · ') : o.sub, plain: true,
             vicon: o.channel === 'releases' ? 'arrowDown' : o.channel === 'tags' ? 'clock' : 'route', iconColor: 'text',
-            right: 'chevron', act: { do: 'pick', channel: o.channel } })), empty: '' },
+            right: o.current ? 'check' : 'chevron', act: { do: 'pick', channel: o.channel } })), empty: '' },
         signIn: auth && m.st && m.st.signin === true ? button(tr("Sign in with GitHub"), { do: 'sign-in' }, { vicon: 'plus', style: 'primary', color: BLUE }) : hidden,
         addToken: auth && m.connected ? button(tr("Add token"), { do: 'pick-add-token' }, { vicon: 'plus', style: 'outline' }) : hidden,
         retry: failed ? button(tr("Try again"), { do: 'pick-retry' }, { vicon: 'refresh', style: 'outline' }) : hidden

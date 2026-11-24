@@ -1067,7 +1067,7 @@ function under(entry, id) {
 }
 // Requests only the Store and the phone page may make (they hold the secret);
 // the phone page offers no restart (web.js).
-const PRIVILEGED = ['reboot', 'safe-mode-off', 'uninstall', 'rollback', 'setup', 'source-add', 'source-probe', 'source-remove', 'login-start', 'login-cancel', 'token-add', 'token-remove', 'web', 'logs',
+const PRIVILEGED = ['reboot', 'safe-mode-off', 'uninstall', 'rollback', 'setup', 'source-add', 'source-probe', 'source-update', 'source-remove', 'login-start', 'login-cancel', 'token-add', 'token-remove', 'web', 'logs',
     'uplink-prefer', 'usb-phone', 'wifi-enable', 'wifi-5ghz', 'wifi-scan', 'wifi-connect', 'wifi-forget', 'proxy-set', 'stats'];
 // requests that change what is installed
 const CHANGES = ['install', 'uninstall', 'rollback', 'setup'];
@@ -4260,12 +4260,15 @@ class Updater {
      * turn (as a source is, readSource), then without one:
      * {type:"probe", repo, status} with status ok (and name, releases, tags,
      * defaultBranch, branches, more), auth-needed (no token reaches it, or it
-     * is not there), offline, rate-limited or error (and error). */
+     * is not there), offline, rate-limited or error (and error). except: a
+     * source being edited whose repo it may be (its own, for a new channel). */
     sourceProbe(req, reply) {
         if (!sourcesLib.REPO.test(req.repo || '')) {
             return 'repo must be <owner>/<repo>';
         }
-        if (this.stored.some((s) => s.type === 'github' && s.repo.toLowerCase() === req.repo.toLowerCase())) {
+        const editing = typeof req.except === 'string' && this.stored.some((s) => s.id === req.except &&
+            s.type === 'github' && s.repo.toLowerCase() === req.repo.toLowerCase());
+        if (!editing && this.stored.some((s) => s.type === 'github' && s.repo.toLowerCase() === req.repo.toLowerCase())) {
             return `${req.repo} is already a source`;
         }
         const answer = (fields) => reply(Object.assign({ type: 'probe', repo: req.repo }, fields));
@@ -4287,6 +4290,57 @@ class Updater {
                     : { status: 'error', error: err.message });
             });
         return undefined;
+    }
+
+    /* Changes a stored source (the Store's edit): its repo or URL, its
+     * channel, or both, under the same id, so what it installed keeps the
+     * source as its origin; the source is read again from scratch. */
+    sourceUpdate(req) {
+        const old = this.stored.find((s) => s.id === req.id);
+        if (!old) {
+            return `no source ${req.id}`;
+        }
+        if (old.builtin) {
+            return 'the Store\'s own source cannot be changed';
+        }
+        let def;
+        if (req.type === 'github') {
+            if (!sourcesLib.REPO.test(req.repo || '')) {
+                return 'repo must be <owner>/<repo>';
+            }
+            if (req.channel !== undefined && req.channel !== null && !sourcesLib.CHANNEL.test(req.channel)) {
+                return 'channel must be releases, tags, branch or branch:<name>';
+            }
+            if (this.stored.some((s) => s.id !== old.id && s.type === 'github' && s.repo.toLowerCase() === req.repo.toLowerCase())) {
+                return `${req.repo} is already a source`;
+            }
+            def = { id: old.id, type: 'github', repo: req.repo };
+            if (req.channel) {
+                def.channel = req.channel;
+            }
+        } else if (req.type === 'https') {
+            try {
+                def = sourcesLib.checkStored({ id: old.id, type: 'https', url: req.url });
+            } catch (e) {
+                return 'url must be https://';
+            }
+            if (this.stored.some((s) => s.id !== old.id && s.url === req.url)) {
+                return `${req.url} is already a source`;
+            }
+        } else {
+            return 'type must be github or https';
+        }
+        // what the old repo or URL listed is not the new one's to keep
+        this.src.delete(old.id);
+        rmIfThere(this.cacheFile(old.id));
+        rmIfThere(this.checkedFile(old.id));
+        cp.execFileSync('rm', ['-rf', path.join(this.ctx.cacheDir, old.id)]);
+        this.ctx.batch.drop();
+        this.saveSources(this.stored.map((s) => (s.id === old.id ? def : s)));
+        this.addRuntime(def);
+        console.log(`source ${def.id}: changed (${sourcesLib.label(def)}${def.channel ? `, ${def.channel}` : ''})`);
+        this.checkSource(def.id);
+        return null;
     }
 
     sourceRemove(id) {
@@ -4676,6 +4730,7 @@ class Updater {
         case 'hello': this.hello(req, client); return undefined;
         case 'source-add': return this.sourceAdd(req);
         case 'source-probe': return this.sourceProbe(req, reply);
+        case 'source-update': return this.sourceUpdate(req);
         case 'source-remove': return this.sourceRemove(req.id);
         case 'login-start': return this.login.start();
         case 'login-cancel': this.login.cancel(); return null;

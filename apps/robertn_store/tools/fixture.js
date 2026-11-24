@@ -123,6 +123,10 @@ function screens() {
             accountsNote: { text: 'Add token failed: GitHub does not accept this token', error: true } }],
         ['pick', { tab: 'settings', stack: main.concat([{ name: 'pick' }]), pick: { repo: 'cauliflowermossgrape/idrive7-apps',
             probe: { status: 'ok', releases: true, tags: false, defaultBranch: 'develop', branches: ['main', 'develop', 'feature/gauges', 'redline'] } } }],
+        // a source being edited: the channel it is on, marked
+        ['pick-edit', { tab: 'settings', stack: main.concat([{ name: 'pick' }]), pick: { repo: 'cauliflowermossgrape/idrive7-apps',
+            probe: { status: 'ok', releases: true, tags: false, defaultBranch: 'develop', branches: ['main', 'develop', 'feature/gauges', 'redline'] },
+            edit: { id: 'idrive7-apps', repo: 'cauliflowermossgrape/idrive7-apps', channel: 'branch:develop' } } }],
         ['pick-private', { tab: 'settings', stack: main.concat([{ name: 'pick' }]), pick: { repo: 'someone/private-apps',
             probe: { status: 'auth-needed' } } }],
         ['pick-offline', { tab: 'settings', stack: main.concat([{ name: 'pick' }]), pick: { repo: 'someone/apps', probe: { status: 'offline' } } }],

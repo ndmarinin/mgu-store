@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A source can be edited from its page (Edit): its repo or URL, and the release channel it is read on, typed in the speller or on the keyboard's page with what it is typed in already; the source keeps its id, so what it installed stays its own.
+
 ## 0.9.45
 
 - While the updater is installing or has installs waiting, the list stays on screen when it restarts.

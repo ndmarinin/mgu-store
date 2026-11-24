@@ -3125,7 +3125,67 @@ function testSources(certs) {
             ok('source-probe: offline', off.status === 'offline', JSON.stringify(off));
             ok('source-probe: ordering', JSON.stringify(require('../js/sources').orderBranches(['a', 'master', 'trunk'], 'trunk')) ===
                 '["master","trunk","a"]' && JSON.stringify(require('../js/sources').orderBranches(['x'], null)) === '["x"]');
-            return Promise.all([priv({ op: 'source-remove', id: 'mgu-store' }), priv({ op: 'source-remove', id: 'second' })]);
+            // source-update: a source's repo, URL or channel changes under the same id
+            return Promise.all([
+                priv({ op: 'source-update', id: 'no_such', type: 'github', repo: 'a/b' }),
+                priv({ op: 'source-update', id: 'mgu-store', type: 'github', repo: 'a/b' }),
+                priv({ op: 'source-update', id: 'third_tagged', type: 'svn', repo: 'a/b' }),
+                priv({ op: 'source-update', id: 'third_tagged', type: 'github', repo: 'bad repo' }),
+                priv({ op: 'source-update', id: 'third_tagged', type: 'github', repo: 'third/tagged', channel: 'nightly' }),
+                priv({ op: 'source-update', id: 'third_tagged', type: 'github', repo: 'third/plain' }),
+                priv({ op: 'source-update', id: 'hp', type: 'https', url: 'http://plain.test/catalog.json' }),
+                priv({ op: 'source-update', id: 'third_plain', type: 'github', repo: 'third/plain', channel: 'branch:trunk' })
+            ]);
+        })
+        .then((errs) => {
+            ok('source-update: no such source, the built-in one, a bad type, repo or channel, another source\'s repo, or a URL that is not https, refused',
+                /no source/.test(errs[0]) && /cannot be changed/.test(errs[1]) && /type must be/.test(errs[2]) && /repo must be/.test(errs[3]) &&
+                /channel/.test(errs[4]) && /already a source/.test(errs[5]) && /https/.test(errs[6]) && errs[7] === null, JSON.stringify(errs));
+            return until(st, () => src('third_plain').status === 'ok' && src('third_plain').channel === 'branch:trunk', 20000, 'the source read again')
+                .then(() => {
+                    const saved = JSON.parse(fs.readFileSync(sources, 'utf8')).sources;
+                    ok('source-update: the channel written under the same id',
+                        saved.some((x) => x.id === 'third_plain' && x.repo === 'third/plain' && x.channel === 'branch:trunk'), JSON.stringify(saved));
+                    return Promise.all([askRaw(sock, { op: 'source-probe', repo: 'third/plain', except: 'third_plain', secret, rid: 'own' }),
+                        askRaw(sock, { op: 'source-probe', repo: 'third/plain', except: 'third_tagged', secret, rid: 'other' })]);
+                })
+                .then(([own, other]) => {
+                    ok('source-probe: a source being edited may be asked about its own repo, no other source\'s',
+                        own.status === 'ok' && /already a source/.test(other.error || ''), JSON.stringify([own, other]));
+                    ghRepo('third/moved');
+                    const movedTree = (v) => ghCommit('third/moved', {
+                        'mgu-repo.json': JSON.stringify({ schema: 1, components: [{ id: 'tag_tool', kind: 'tool', path: 'tool' }] }),
+                        'tool/component.json': JSON.stringify({ id: 'tag_tool', kind: 'tool', version: v, files: [{ path: 'x', mode: '0644' }] }),
+                        'tool/x': v
+                    });
+                    gh.repos['third/moved'].tags = [{ name: 'tag_tool@1.3.0', sha: movedTree('1.3.0') }];
+                    return priv({ op: 'source-update', id: 'third_tagged', type: 'github', repo: 'third/moved', channel: 'tags' });
+                })
+                .then((err) => {
+                    ok('source-update: a repo and its channel change under the same id', err === null, err);
+                    return until(st, () => src('third_tagged').status === 'ok' && src('third_tagged').label === 'third/moved' &&
+                        src('third_tagged').channel === 'tags', 20000, 'the moved repo read');
+                })
+                .then(() => {
+                    const saved = JSON.parse(fs.readFileSync(sources, 'utf8')).sources;
+                    ok('source-update: sources.json has the moved repo and its channel under the old id',
+                        saved.some((x) => x.id === 'third_tagged' && x.repo === 'third/moved' && x.channel === 'tags'), JSON.stringify(saved));
+                    ok('source-update: the moved source lists on its tags', comp('tag_tool').version === '1.3.0',
+                        JSON.stringify([src('third_tagged'), comp('tag_tool')]));
+                    // another https catalog on the test server (its files are served by their basename)
+                    fs.writeFileSync(path.join(T, 'pub', 'moved.json'), JSON.stringify({ schema: 1, components: [] }));
+                    return priv({ op: 'source-update', id: 'hp', type: 'https', url: `https://updates.test:${HTTPS_PORT}/moved.json` });
+                })
+                .then((err) => {
+                    ok('source-update: an https source moves to another catalog', err === null, err);
+                    return until(st, () => src('hp').status === 'ok', 20000, 'the https source read again');
+                })
+                .then(() => {
+                    const saved = JSON.parse(fs.readFileSync(sources, 'utf8')).sources;
+                    ok('source-update: the https source\'s new URL written',
+                        saved.some((x) => x.id === 'hp' && x.url === `https://updates.test:${HTTPS_PORT}/moved.json`), JSON.stringify(saved));
+                    return Promise.all([priv({ op: 'source-remove', id: 'mgu-store' }), priv({ op: 'source-remove', id: 'second' })]);
+                });
         })
         .then((errs) => {
             ok('source-remove: the built-in source stays; another goes', /cannot be removed/.test(errs[0]) && errs[1] === null &&

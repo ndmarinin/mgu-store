@@ -18,6 +18,7 @@
   "SID_STORE_CHANNEL": "Κανάλι",
   "SID_STORE_ACCOUNT": "Λογαριασμός",
   "SID_STORE_COMPONENTS": "Στοιχεία",
+  "SID_STORE_EDIT": "Επεξεργασία",
   "SID_STORE_REMOVE": "Κατάργηση",
   "SID_STORE_INSTALL_ON_GITHUB": "Εγκατάσταση στο GitHub",
   "SID_STORE_SIGN_IN_WITH_GITHUB": "Σύνδεση με GitHub",

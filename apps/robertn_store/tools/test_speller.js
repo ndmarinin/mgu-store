@@ -65,8 +65,19 @@ cases.push((() => {
         assert.deepStrictEqual(f.log.created, ['02076b22-d19b-4aef-9e8c-0d7305d8b88c']);
         assert.strictEqual(f.log.started.token, 'tok-1');
         assert.strictEqual(f.log.started.startParameters.get(4), 'Add source');
+        assert.strictEqual(f.log.started.startParameters.has(102), false, 'nothing to edit: no 102');
         assert.deepStrictEqual(f.log.unsubscribed, [7]);
         return 'ok';
+    });
+})());
+
+// what is being edited goes with the start parameters as 102
+cases.push((() => {
+    const f = fakeApp((emit) => emit('COMPLETED', [[102, 'owner/repo fixed'], [105, true]]));
+    return spell(f.app, 'Edit source', 'owner/repo').then((text) => {
+        assert.strictEqual(text, 'owner/repo fixed');
+        assert.strictEqual(f.log.started.startParameters.get(4), 'Edit source');
+        assert.strictEqual(f.log.started.startParameters.get(102), 'owner/repo');
     });
 })());
 
